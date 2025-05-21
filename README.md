@@ -1,125 +1,211 @@
-# 🧠 XIRCLS: AI-Powered Meeting Transcription with Speaker Diarization
+# XIRCLS
 
-A Django web application that connects to **Microsoft Outlook** and **OneDrive** to fetch Teams meeting recordings, then transcribes them with **Whisper** and labels speakers with **Pyannote**.  
-Everything is displayed in a clean web dashboard—one click, and you get a speaker-attributed transcript.
-
----
-
-## 🚀 Features
-- **OAuth 2.0** sign-in with Microsoft 365
-- **Calendar view** of upcoming Outlook meetings
-- **Automatic discovery** of Teams recordings in OneDrive ▸ “Recordings” folder
-- **Whisper ASR** for high-quality speech-to-text
-- **Pyannote Audio** for speaker diarization (who-said-what)
-- **One-click transcription** button beside every recording
-- **JSON API** endpoints for sentiment analysis & Vosk voice recognition (extras)
+> **AI‑powered sentiment & voice analysis platform with Outlook meeting transcription — built with Django, DRF, Whisper, Vosk & PyAnnote.**
 
 ---
 
-## 📂 Project Structure
+## Table of Contents
 
-XIRCLS/
-├── outlook_integration/ # Microsoft Graph (login, calendar, OneDrive)
-├── transcription/ # Whisper + Pyannote pipeline
-├── sentiment/ # Example APIs (RoBERTa sentiment, Vosk STT)
-├── templates/ # Django HTML files
-├── vosk_model/ # (optional) offline Vosk model
-├── manage.py
-└── README.md
+1. [Features](#features)
+2. [Architecture Overview](#architecture-overview)
+3. [Getting Started](#getting-started)
 
-yaml
-Copy
-Edit
+   * [Prerequisites](#prerequisites)
+   * [Installation](#installation)
+   * [Environment Variables](#environment-variables)
+   * [Database Migration](#database-migration)
+   * [Running the Dev Server](#running-the-development-server)
+4. [Usage](#usage)
 
----
-
-## 🧰 Tech Stack
-
-| Layer | Technology |
-|-------|------------|
-| **Backend** | Django 5 · Django REST Framework |
-| **Auth** | Microsoft Identity Platform (OAuth 2.0 PKCE) |
-| **APIs** | Microsoft Graph (Calendars.Read, Files.Read.All) |
-| **ASR** | Hugging Face Transformers — `openai/whisper-base` |
-| **Diarization** | Pyannote Audio — `pyannote/speaker-diarization` |
-| **Audio** | Pydub · ffmpeg |
-| **DevOps** | Python 3.11 · venv · dotenv |
+   * [Sentiment Analysis API](#sentiment-analysis-api)
+   * [Voice Recognition API (Vosk)](#voice-recognition-api-vosks)
+   * [Outlook Integration Dashboard](#outlook-integration-dashboard)
+5. [Project Structure](#project-structure)
+6. [Running Tests](#running-tests)
+7. [Contributing](#contributing)
+8. [License](#license)
 
 ---
 
-## ⚙️ Setup
+## Features
 
-1. **Clone & venv**
-   ```bash
-   git clone https://github.com/rl4658/XIRCLS.git
-   cd XIRCLS
-   python -m venv env && source env/bin/activate  # Windows: env\Scripts\activate
-Install
+| Module                                                                                                                                | Highlights                                                                            |
+| ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| **Sentiment (REST API)**                                                                                                              | • RoBERTa‑based sentiment model from *cardiffnlp/twitter‑roberta‑base‑sentiment*      |
+| • `/api/sentiment/` POST endpoint returns **neg/neu/pos** scores                                                                      |                                                                                       |
+| **Voice API (Vosk)**                                                                                                                  | • On‑device speech recognition with the bundled US English Vosk model                 |
+| • Accepts WebM, converts to 16 kHz mono WAV, returns plain text                                                                       |                                                                                       |
+| **Outlook Integration**                                                                                                               | • OAuth 2 flow via `O365` SDK                                                         |
+| • Fetches next 30 days of calendar events                                                                                             |                                                                                       |
+| • Scans OneDrive **Recordings** folder and enables one‑click **speaker‑aware** transcription using Whisper ASR + PyAnnote diarization |                                                                                       |
+| **Front‑End Templates**                                                                                                               | Minimal responsive HTML dashboards for login, meeting overview & transcription viewer |
 
-bash
-Copy
-Edit
-pip install -r requirements.txt
-ffmpeg (required by pydub)
+---
 
-Ubuntu: sudo apt install ffmpeg
+## Architecture Overview
 
-macOS: brew install ffmpeg
+```
+│  Django 5.1.6 (ASGI/W   SGI)
+│
+├── sentiment                (DRF API, RoBERTa)
+├── outlook_integration      (O365, templates)
+├── transcription            (HF Whisper + PyAnnote)
+├── vosk_model/              (offline ASR model)
+└── db.sqlite3               (default SQLite dev DB)
+```
 
-Windows: download from https://ffmpeg.org and add to PATH
+**Tech Stack:** Django 5 · Django REST Framework · Vosk · Hugging Face Transformers · PyAnnote · pydub · O365 SDK · FFmpeg.
 
-Environment vars – create .env in the project root:
+---
 
-env
-Copy
-Edit
-DJANGO_SECRET_KEY=replace_with_random_string
-O365_CLIENT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-O365_CLIENT_SECRET=your_msapp_secret
-HUGGINGFACE_TOKEN=hf_XXXXXXXXXXXXXXXXXXXXXXXXXXXX
-Migrate & run
+## Getting Started
 
-bash
-Copy
-Edit
-python manage.py migrate
-python manage.py runserver
-Open http://localhost:8000/outlook/ and sign in with your Microsoft account.
+### Prerequisites
 
-🔄 Workflow
-Dashboard shows meetings & OneDrive recordings.
+* **Python 3.11 or 3.12**
+* **FFmpeg** (for audio conversion)
+* Git, virtualenv/venv
 
-Click Transcribe → the MP3 is downloaded, converted to WAV (mono 16 kHz).
+### Installation
 
-Pyannote assigns speaker segments.
+```bash
+# 1. Clone repository
+$ git clone https://github.com/ray-xircls/xircls.git
+$ cd xircls
 
-Whisper transcribes audio to text with word-level timestamps.
+# 2. Create & activate virtual environment
+$ python -m venv .venv
+$ source .venv/bin/activate   # Windows: .venv\Scripts\activate
 
-Words are aligned to speaker turns → you get a clean, speaker-labeled transcript in the browser.
+# 3. Install dependencies
+$ pip install --upgrade pip
+$ pip install -r requirements.txt   # or see requirements snippet below
+```
 
-🖼️ Screenshots
-Dashboard	Transcript
+<details>
+<summary>Minimal requirements.txt</summary>
 
-🧪 API Playground
-Sentiment demo (RoBERTa):
+```
+Django==5.1.6
+ djangorestframework
+ transformers
+ scipy
+ vosk
+ pydub
+ O365
+ python-decouple
+ python-dotenv
+ pyannote.audio
+ speechbrain  # for HF gated models cache helper
+```
 
-bash
-Copy
-Edit
-curl -X POST http://localhost:8000/api/sentiment/ \
+</details>
+
+### Environment Variables
+
+Create a **.env** file at the repo root:
+
+```
+# Django
+DJANGO_SECRET_KEY="change‑me‑in‑prod"
+
+# Microsoft Graph (Azure AD app)
+O365_CLIENT_ID=<your‑app‑id>
+O365_CLIENT_SECRET=<your‑secret>
+
+# Hugging Face (for diarization pipeline)
+HUGGINGFACE_TOKEN=<optional for gated models>
+```
+
+### Database Migration
+
+```bash
+$ python manage.py migrate
+```
+
+### Running the Development Server
+
+```bash
+$ python manage.py runserver
+# Visit http://127.0.0.1:8000/
+```
+
+---
+
+## Usage
+
+### Sentiment Analysis API
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/sentiment/ \
      -H "Content-Type: application/json" \
-     -d '{"text": "This project is awesome!"}'
-📝 Troubleshooting
-Issue	Fix
-Pyannote access denied	Accept model license on HF & set HUGGINGFACE_TOKEN
-ffmpeg not found	Confirm it’s in your PATH
-Token expired	Delete o365_token.txt and re-login
+     -d '{"text": "I love XIRCLS!"}'
+```
 
-📜 License
-MIT – see LICENSE.
+Response:
 
-✨ Acknowledgements
-OpenAI Whisper · Hugging Face · Pyannote Audio · Microsoft Graph · Vosk
+```json
+{
+  "text": "I love XIRCLS!",
+  "neg": 0.02,
+  "neu": 0.17,
+  "pos": 0.81
+}
+```
 
-👤 Author
-Raymond Li — LinkedIn · Portfolio · GitHub
+### Voice Recognition API (Vosk)
+
+*Open* `http://127.0.0.1:8000/voice/` in a modern browser → record speech → server returns live transcript via `/api/voice-vosk/`.
+
+### Outlook Integration Dashboard
+
+1. Navigate to `http://127.0.0.1:8000/outlook/`
+2. Sign in with your Microsoft 365 account.
+3. View upcoming meetings and OneDrive recordings.
+4. Click **Transcribe** → Whisper + diarization → readable transcript per speaker.
+
+> **Note:** your Azure AD app’s redirect URI **must** match `REDIRECT_URI` in `outlook_integration/views.py` (default: `http://localhost:8000/outlook/callback/`).
+
+---
+
+## Project Structure
+
+```
+├── XIRCLS/                  # Django project settings/urls
+├── outlook_integration/     # Outlook app (views, templates)
+├── sentiment/               # Sentiment API app
+├── transcription/           # Speaker‑aware transcription helper
+├── vosk_model/              # Pre‑downloaded Vosk US model (~50 MB)
+├── manage.py                # Django CLI
+└── README.md
+```
+
+---
+
+## Running Tests
+
+```bash
+$ python manage.py runserver
+```
+
+---
+
+## Contributing
+
+Pull requests are welcome! Please open an issue first to discuss major changes.
+Make sure `black` and `isort` pass pre‑commit hooks and include relevant tests.
+
+---
+
+## License
+
+This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
+
+---
+
+## Acknowledgements
+
+* [CardiffNLP](https://github.com/cardiffnlp) for the RoBERTa sentiment model.
+* [Vosk Speech Recognition](https://alphacephei.com/vosk).
+* [PyAnnote](https://github.com/pyannote/pyannote-audio) for diarization.
+* [OpenAI Whisper](https://github.com/openai/whisper) for ASR.
